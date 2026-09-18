@@ -115,6 +115,9 @@ window.I18N = {
     devRescan: '重新掃描裝置',
     devRescanned: '已重新掃描音訊裝置',
     devRescanBusy: '轉換中無法重新掃描裝置，請先按停止。（執行中重掃會讓 coreaudiod 抱著沒有消費者的裝置空轉）',
+    recInProgress: '錄製中…',
+    recSaving: '下載中…',
+    recSaved: (p) => `已存到 ${p}`,
     err: {
       invalid_token: 'token 不正確',
       already_running: '已在執行中，請先停止',
@@ -127,6 +130,7 @@ window.I18N = {
       format_not_supported: '不支援的格式',
       delete_failed: '刪不掉——檔案可能已經不在，或正在錄製中',
       not_found: '找不到這個檔案',
+      invalid_name: '檔名不合法',
     },
   },
 
@@ -245,6 +249,9 @@ window.I18N = {
     devRescan: 'Rescan devices',
     devRescanned: 'Audio devices rescanned',
     devRescanBusy: 'Devices cannot be rescanned while running - press Stop first. (Rescanning under a live stream leaves coreaudiod spinning on an orphaned device.)',
+    recInProgress: 'Recording …',
+    recSaving: 'Downloading …',
+    recSaved: (p) => `Saved to ${p}`,
     err: {
       invalid_token: 'Invalid token',
       already_running: 'Already running — stop it first',
@@ -257,6 +264,7 @@ window.I18N = {
       format_not_supported: 'Unsupported format',
       delete_failed: 'Could not delete it - the file may be gone, or it is still being recorded',
       not_found: 'No such file',
+      invalid_name: 'Invalid file name',
     },
   },
 
@@ -375,6 +383,9 @@ window.I18N = {
     devRescan: 'デバイスを再スキャン',
     devRescanned: 'オーディオデバイスを再スキャンしました',
     devRescanBusy: '変換中は再スキャンできません。先に停止してください。（実行中に再スキャンすると coreaudiod が消費者のいないデバイスを回し続けます）',
+    recInProgress: '録音中…',
+    recSaving: 'ダウンロード中…',
+    recSaved: (p) => `${p} に保存しました`,
     err: {
       invalid_token: 'トークンが正しくありません',
       already_running: '既に実行中です。先に停止してください',
@@ -387,6 +398,7 @@ window.I18N = {
       format_not_supported: '未対応の形式です',
       delete_failed: '削除できませんでした。ファイルが存在しないか、録音中です',
       not_found: 'ファイルが見つかりません',
+      invalid_name: 'ファイル名が不正です',
     },
   },
 };

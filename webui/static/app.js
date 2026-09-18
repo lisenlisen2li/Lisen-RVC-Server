@@ -724,17 +724,49 @@ function renderRecordings(list) {
   }
   // 檔名一律由伺服器產生並比對過白名單樣式（recorder.NAME_RE），
   // 只可能是 rvc-日期-時間.wav|mp3，不會夾帶標記。
-  $('recList').innerHTML = recFiles.map((f) => `
-    <li${f.recording ? ' class="on"' : ''}>
+  $('recList').innerHTML = recFiles.map((f) => {
+    // 正在寫的那個檔案不給下載也不給刪：wav 的長度欄位還沒補上，
+    // 現在抓回去會是個壞檔。
+    if (f.recording) {
+      return `<li class="on"><span class="nm">${f.name}</span>
+        <span class="sz">${T.recInProgress}</span></li>`;
+    }
+    // 原生客戶端不能用 <a download>，理由見 saveRecording()
+    const dl = isClient
+      ? `<button class="icobtn wide dl" data-name="${f.name}">${T.recDownload}</button>`
+      : `<a class="icobtn wide" download
+           href="/api/recordings/file?name=${encodeURIComponent(f.name)}&token=${encodeURIComponent(TOKEN)}"
+           >${T.recDownload}</a>`;
+    return `<li>
       <span class="nm">${f.name}</span>
-      <span class="sz">${f.recording ? '●' : fmtBytes(f.bytes)}</span>
-      <a class="icobtn wide" download
-         href="/api/recordings/file?name=${encodeURIComponent(f.name)}&token=${encodeURIComponent(TOKEN)}"
-         >${T.recDownload}</a>
+      <span class="sz">${fmtBytes(f.bytes)}</span>
+      ${dl}
       <button class="icobtn wide del" data-name="${f.name}">${T.recDelete}</button>
-    </li>`).join('');
+    </li>`;
+  }).join('');
   $('recList').querySelectorAll('button.del').forEach((b) =>
     b.addEventListener('click', () => removeRecording(b.dataset.name)));
+  $('recList').querySelectorAll('button.dl').forEach((b) =>
+    b.addEventListener('click', () => saveRecording(b.dataset.name)));
+}
+
+// 原生客戶端的視窗是 WKWebView，它**不支援 `<a download>`**——按下去只會導航到
+// 檔案網址，而 WebKit 把 audio/* 用內建播放器開啟，視窗又沒有上一頁可按，使用者
+// 就卡在播放畫面出不來、檔案也沒下載到。所以改成請客戶端自己把檔案抓回本機的
+// 下載資料夾，整個過程不換頁。
+async function saveRecording(name) {
+  toast(T.recSaving);
+  try {
+    const r = await fetch('/client/download', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(errText(j.detail || r.statusText));
+    toast(T.recSaved(j.path));
+  } catch (e) {
+    toast(e.message, true);
+  }
 }
 
 async function refreshRecordings() {

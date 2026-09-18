@@ -434,6 +434,26 @@ FEC 的還原邏輯有寫過端到端測試（真的開 UDP socket、真的用�
 `refreshDevices()` 是「先 `savePrefs()` 記下名稱 → 重抓 → `restoreDevices()` 按名稱
 選回來」。這也是裝置存名稱不存 index 的另一個理由。
 
+### 兩個只在原生客戶端才會發生的坑
+
+**pywebview 的 `private_mode` 預設是 `True`**，意思是 cookie 與 localStorage
+都不保留。介面把主題、語言、裝置選擇、所有參數都記在 localStorage，所以在
+`.app` 裡每次啟動都是一張白紙——症狀是「設定存了但重開完全沒還原」，而瀏覽器
+直連時一切正常，非常容易誤判成前端的錯。`client_ui.serve()` 現在明確傳
+`private_mode=False` 與 `storage_path`（指到設定檔旁邊，刪掉支援目錄就等於重置）。
+
+實測：同一個 storage_path 連跑兩次，`private_mode=True` 讀回 `null`、
+`private_mode=False` 讀得回寫進去的值。
+
+**WKWebView 不支援 `<a download>`。** 按下去不會下載，只會導航到那個網址，而
+WebKit 把 `audio/*` 當成媒體文件用內建播放器開啟——pywebview 的視窗沒有上一頁
+可以按，使用者就卡在播放畫面出不來，檔案也沒拿到。所以客戶端的下載改成
+`POST /client/download`：由客戶端自己用 httpx 串流抓檔、寫進 `~/Downloads/`，
+網頁完全不換頁。一般瀏覽器仍然用原本的 `<a download>`，那裡是好的。
+
+串流寫入而不是整包讀進記憶體（一段十分鐘的 wav 約 57MB），先寫 `.part` 最後才
+換名，中途失敗不會留下半截檔案冒充完整檔；同名自動加編號，不覆蓋。
+
 ### 介面搬到客戶端
 
 `client_ui.py` 現在從本機 `static/` 服務 `/` 與 `/static/*`，只有其他路徑才轉發。
