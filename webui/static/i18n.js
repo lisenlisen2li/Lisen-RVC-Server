@@ -112,6 +112,9 @@ window.I18N = {
     retry: '重試',
     offlineTitle: '連不上伺服器',
     offlineHint: '確認那台機器開著、位址正確，然後按「重試」。介面是這台自己畫的，所以位址永遠改得到。',
+    devRescan: '重新掃描裝置',
+    devRescanned: '已重新掃描音訊裝置',
+    devRescanBusy: '轉換中無法重新掃描裝置，請先按停止。（執行中重掃會讓 coreaudiod 抱著沒有消費者的裝置空轉）',
     err: {
       invalid_token: 'token 不正確',
       already_running: '已在執行中，請先停止',
@@ -239,6 +242,9 @@ window.I18N = {
     retry: 'Retry',
     offlineTitle: 'Cannot reach the server',
     offlineHint: 'Check that the machine is on and the address is right, then press Retry. This page is served locally, so the address is always editable.',
+    devRescan: 'Rescan devices',
+    devRescanned: 'Audio devices rescanned',
+    devRescanBusy: 'Devices cannot be rescanned while running - press Stop first. (Rescanning under a live stream leaves coreaudiod spinning on an orphaned device.)',
     err: {
       invalid_token: 'Invalid token',
       already_running: 'Already running — stop it first',
@@ -366,6 +372,9 @@ window.I18N = {
     retry: '再試行',
     offlineTitle: 'サーバーに接続できません',
     offlineHint: 'マシンが起動しているか、アドレスが正しいかを確認してから「再試行」を押してください。この画面はこのマシンが表示しているので、アドレスはいつでも変更できます。',
+    devRescan: 'デバイスを再スキャン',
+    devRescanned: 'オーディオデバイスを再スキャンしました',
+    devRescanBusy: '変換中は再スキャンできません。先に停止してください。（実行中に再スキャンすると coreaudiod が消費者のいないデバイスを回し続けます）',
     err: {
       invalid_token: 'トークンが正しくありません',
       already_running: '既に実行中です。先に停止してください',

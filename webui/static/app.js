@@ -326,6 +326,28 @@ async function loadDevices() {
   } catch (_) {}
 }
 
+// PortAudio 在初始化時就把裝置列表定案，之後不會再重掃——**重新整理網頁沒有用**，
+// 拿到的是同一份快取。要看到新插上的音源，兩端都得真的 terminate + initialize
+// 一次，而那只有在沒有串流在跑的時候才安全。
+async function refreshDevices() {
+  const btn = $('devRefresh');
+  btn.disabled = true;
+  try {
+    // 先把目前選的記下來。下面會重建 <option>，靠名稱選回來（裝置 index 會位移）
+    savePrefs();
+    await loadDevices();
+    restoreDevices();
+    checkSampleRates();
+    const busy = (devSets.server && devSets.server.rescanned === false) ||
+                 (isClient && devSets.client && devSets.client.rescanned === false);
+    // 轉換中重掃會讓 coreaudiod 抱著孤兒 IOProc 空轉，所以後端會拒絕。
+    // 要講清楚，不然使用者只會看到「按了沒反應」。
+    toast(busy ? T.devRescanBusy : T.devRescanned, busy);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 const devOpt = (x) => `<option value="${x.index}">${x.name} · ${x.sr}Hz</option>`;
 
 function sideOf(which) {
@@ -469,6 +491,7 @@ function bindUI() {
   $('outSide').addEventListener('change', fillDevices);
   $('devIn').addEventListener('change', checkSampleRates);
   $('devOut').addEventListener('change', checkSampleRates);
+  $('devRefresh').addEventListener('click', refreshDevices);
   $('startBtn').addEventListener('click', () => start());
   $('stopBtn').addEventListener('click', () => stop());
   $('applyBtn').addEventListener('click', applyRestart);

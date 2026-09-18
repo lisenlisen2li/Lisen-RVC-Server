@@ -171,6 +171,12 @@
               <span class="ctl-label" data-i18n="devMonitor">Monitor</span>
               <select id="devMon"></select>
             </div>
+            <!-- PortAudio 只在初始化時掃一次裝置，所以重整頁面看不到新插上的
+                 音源，必須真的重掃一次。轉換中不能重掃（見 client_ui._devices）。 -->
+            <div class="ctl">
+              <span class="ctl-label"></span>
+              <button id="devRefresh" class="icobtn wide" data-i18n="devRescan">Rescan devices</button>
+            </div>
             <p class="tiny warn" id="srHint"></p>
           </div>
         </section>

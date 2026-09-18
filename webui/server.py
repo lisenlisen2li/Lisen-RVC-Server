@@ -128,13 +128,21 @@ def list_models():
 def list_audio_devices():
     """列舉音訊裝置。
 
+    PortAudio 在 Pa_Initialize() 時就把裝置列表建好，之後不會再重掃，所以要看到
+    新插上的裝置一定得 terminate + initialize 一次。
+
     注意：串流執行中絕對不能呼叫 sd._terminate()。PortAudio 一旦在活的串流底下
     被終止，已註冊到 CoreAudio 的 IOProc 不會被解除註冊，coreaudiod 會抱著一個
     沒有消費者的（往往還是聚合的）裝置持續空轉吃 CPU，而且每次都再疊一個。
-    只有閒置時才重新初始化，以便抓到新插拔的裝置。
+    只有閒置時才重新初始化。
+
+    「閒置」要連 配置中 一起看：running 是在 router.start() 開完串流之後才設成
+    True 的，只看 running 的話，從開始建立串流到旗標翻起來之間有一段空窗，
+    這時候進來的請求會在串流正在建立的當下把 PortAudio 收掉。
     """
     import sounddevice as sd
-    if not state["running"]:
+    idle = not state["running"] and not state["配置中"]
+    if idle:
         sd._terminate(); sd._initialize()
     ins, outs = [], []
     for i, d in enumerate(sd.query_devices()):
@@ -143,7 +151,9 @@ def list_audio_devices():
             ins.append(item)
         if d["max_output_channels"] > 0:
             outs.append({**item, "channels": d["max_output_channels"]})
-    return {"input": ins, "output": outs}
+    # 介面靠這個欄位告訴使用者「沒掃到新裝置是因為轉換中」，而不是讓他
+    # 反覆按重新掃描卻什麼也沒發生
+    return {"input": ins, "output": outs, "rescanned": idle}
 
 
 # ---------- REST ----------
