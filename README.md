@@ -3,7 +3,7 @@
 在 Apple Silicon 上跑 RVC 即時變聲，走 MPS。提供網頁介面，以及給原生客戶端用的
 UDP 音訊通道。
 
-客戶端在另一個 repo：**rvc-client**（在你手邊那台裝置收放音，不需要模型或 torch）。
+客戶端在另一個 repo：**Lisen-RVC-Client**（在你手邊那台裝置收放音，不需要模型或 torch）。
 
 ## 為什麼有這個專案
 
