@@ -25,8 +25,8 @@ import time
 import numpy as np
 
 from webui.udp_audio import (
-    HEADER, MAGIC_IN, MAGIC_OUT, VERSION, FLAG_INT16,
-    CHUNK_SAMPLES, REGISTER, SOCK_BUF, chunk_count,
+    HEADER, MAGIC_IN, MAGIC_OUT, VERSION, FLAG_INT16, FLAG_PARITY,
+    CHUNK_SAMPLES, REGISTER, SOCK_BUF, chunk_count, xor_parity,
 )
 
 REASSEMBLY_TIMEOUT = 0.5
@@ -104,24 +104,31 @@ class AudioRouter:
         self._seq_out = 0
         self.ring = None
         self.jitter_ms = 30.0
+        self.fec = False
         self._playing = False
         # 統計
         self.blocks_in = self.blocks_out = 0
         self.lost_blocks = self.incomplete = self.bad = 0
+        self.parity_sent = 0
         self.last_rx = 0.0
 
     # ---------- 生命週期 ----------
 
     def start(self, source, sink, in_dev=None, out_dev=None,
-              udp_host="0.0.0.0", udp_port=7867, session=0, jitter_ms=30.0):
+              udp_host="0.0.0.0", udp_port=7867, session=0, jitter_ms=30.0,
+              fec=False):
         import sounddevice as sd
 
         self.stop()
         self._stop.clear()
         self.source, self.sink, self.session = source, sink, session
         self.jitter_ms = jitter_ms
+        # 只有送給客戶端才需要同位片。sink == "server" 時結果直接進環形緩衝，
+        # 根本沒有網路可掉。
+        self.fec = bool(fec) and sink == "client"
         self.blocks_in = self.blocks_out = 0
         self.lost_blocks = self.incomplete = self.bad = 0
+        self.parity_sent = 0
         self._pending.clear()
         self._last_seq = None
         self._seq_out = 0
@@ -190,6 +197,8 @@ class AudioRouter:
             "lost_blocks": self.lost_blocks,
             "incomplete": self.incomplete,
             "bad": self.bad,
+            "fec": self.fec,
+            "parity_sent": self.parity_sent,
             "idle_sec": round(time.time() - self.last_rx, 1) if self.last_rx else None,
             "ring_ms": round(self.ring.level() / self.engine.params.samplerate * 1000, 1)
                        if self.ring else None,
@@ -284,12 +293,21 @@ class AudioRouter:
         cnt = chunk_count(len(o16))
         seq = self._seq_out
         self._seq_out = (self._seq_out + 1) & 0xFFFFFFFF
+        parts = [o16[i * CHUNK_SAMPLES:(i + 1) * CHUNK_SAMPLES] for i in range(cnt)]
         try:
-            for i in range(cnt):
-                part = o16[i * CHUNK_SAMPLES:(i + 1) * CHUNK_SAMPLES]
+            for i, part in enumerate(parts):
                 self.sock.sendto(
                     HEADER.pack(MAGIC_OUT, VERSION, FLAG_INT16,
                                 self.session, seq, i, cnt) + part.tobytes(), self.peer)
+            if self.fec:
+                # 同位片排在資料片後面。即時音訊沒有重傳的餘裕——等重傳回來
+                # 那塊音訊早就該播完了——所以掉的那片只能當場算回來。
+                # 一個區塊 8 片，多送這一片是 12.5% 的頻寬，區網上無感。
+                self.sock.sendto(
+                    HEADER.pack(MAGIC_OUT, VERSION, FLAG_INT16 | FLAG_PARITY,
+                                self.session, seq, cnt, cnt)
+                    + xor_parity(parts).tobytes(), self.peer)
+                self.parity_sent += 1
             self.blocks_out += 1
         except OSError:
             pass
@@ -330,6 +348,14 @@ class AudioRouter:
 
             if self.source != "client":
                 continue        # 這個組合不收客戶端的音訊
+
+            if idx >= cnt or (flags & FLAG_PARITY):
+                # 去程不做 FEC，客戶端不會送同位片。這一關主要是防呆：idx 超出
+                # 範圍的封包若進了湊片字典，「湊齊了嗎」的計數會被灌滿，但真正
+                # 的資料片其實還缺，下面的 concatenate 就 KeyError，整條 UDP
+                # 執行緒無聲無息地死掉，症狀是音訊毫無預警全停。
+                self.bad += 1
+                continue
 
             ent = self._pending.get(seq)
             if ent is None:

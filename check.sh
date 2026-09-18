@@ -21,7 +21,8 @@ echo "=== UDP 協定兩份定義是否一致 ==="
 .venv/bin/python - <<'PY'
 import re
 a=open('webui/udp_audio.py').read(); b=open('rvc-client/udp_protocol.py').read()
-keys=['HEADER = struct.Struct','MAGIC_IN','MAGIC_OUT','VERSION =','FLAG_INT16','CHUNK_SAMPLES =']
+keys=['HEADER = struct.Struct','MAGIC_IN','MAGIC_OUT','VERSION =','FLAG_INT16',
+      'FLAG_PARITY','CHUNK_SAMPLES =']
 bad=[]
 for k in keys:
     ra=[l.strip() for l in a.splitlines() if l.startswith(k)]

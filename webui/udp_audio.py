@@ -8,11 +8,11 @@
 封包格式（小端序，標頭 16 bytes）：
     magic  4s   送出用 b'RVCA'，回覆用 b'RVCB'
     ver    B    通訊協定版本
-    flags  B    0 = int16 PCM
+    flags  B    bit0 保留（0 = int16 PCM）；bit1 = 這一片是 XOR 同位
     sess   I    /api/start 發的工作階段編號，用來擋掉不相干的封包
     seq    I    區塊序號
-    idx    B    這是該區塊的第幾個分片
-    cnt    B    該區塊共有幾個分片
+    idx    B    這是該區塊的第幾個分片；同位片的 idx 等於 cnt
+    cnt    B    該區塊有幾個「資料」分片（不含同位片）
     pcm    int16[<= CHUNK_SAMPLES]
 
 為什麼要自己切分片：
@@ -20,6 +20,15 @@
     換成 int16 是 9600 bytes，直接送會 EMSGSIZE。
   · 乙太網路 MTU 1500，不切的話會被 IP 分片，掉任何一片就整塊遺失，而且
     核心層的重組失敗我們看不到。自己切就能精確知道少了哪一片。
+
+前向糾錯，只做伺服器 → 客戶端這個方向：
+  每個區塊在資料分片之後多送一片 XOR 同位，區塊裡掉任何一片都能還原，
+  頻寬多 1/cnt（區塊 0.10 秒是 8 片，約 12%）。
+  只保護回程是因為實測去程幾乎不掉包（客戶端序號缺口 27 對伺服器湊不齊 1），
+  而一片掉了就整塊丟棄，0.25% 的封包遺失會被放大成 2% 的區塊遺失，
+  客戶端的抖動緩衝因此見底。
+  客戶端在 /api/start 帶 "fec": true 要求，伺服器預設不送——舊的客戶端不會
+  收到同位片，行為跟以前完全一樣。
 
 用 int16 而不是 float32：頻寬砍半，而 16 bit 對語音是 CD 品質，聽不出差異。
 引擎本來就會把訊號夾在 ±1，換算無損。
@@ -37,6 +46,11 @@ MAGIC_IN = b"RVCA"
 MAGIC_OUT = b"RVCB"
 VERSION = 1
 FLAG_INT16 = 0
+
+# 同位分片：flags 帶這個位元代表酬載不是音訊，而是同一區塊所有資料分片的
+# XOR。它的 idx 一律等於 cnt（資料片編號是 0..cnt-1，不會撞號），而 cnt 仍然
+# 是資料片的數量，收端「湊齊 cnt 片沒有」的判斷完全不用改。
+FLAG_PARITY = 1 << 1
 
 # 每個分片的樣本數。16 + 600*2 = 1216 bytes，安全地低於 1500 的 MTU
 # （還要扣掉 IP 20 + UDP 8 的標頭）。
@@ -56,6 +70,35 @@ REASSEMBLY_TIMEOUT = 0.5
 
 def chunk_count(n_samples: int) -> int:
     return (n_samples + CHUNK_SAMPLES - 1) // CHUNK_SAMPLES
+
+
+def shard_width(total: int, idx: int) -> int:
+    """第 idx 片應該有幾個樣本。最後一片可能不滿 CHUNK_SAMPLES。"""
+    return max(0, min(CHUNK_SAMPLES, total - idx * CHUNK_SAMPLES))
+
+
+def xor_parity(shards) -> np.ndarray:
+    """把一個區塊的所有資料分片 XOR 成同位片。
+
+    最後一片可能較短，計算時視為後面補零，所以同位片一律是 CHUNK_SAMPLES
+    長。還原時再依 shard_width() 截回去。
+    """
+    acc = np.zeros(CHUNK_SAMPLES, dtype="<i2")
+    for s in shards:
+        acc[:len(s)] ^= s
+    return acc
+
+
+def recover_shard(parity, others, width: int) -> np.ndarray:
+    """用同位片與其餘分片還原缺掉的那一片。
+
+    parity = s0 ^ s1 ^ ... ^ sn，把收到的再 XOR 回去，剩下的就是缺掉的那片。
+    **只能救一片**，同一區塊掉兩片以上就救不回來了。
+    """
+    acc = parity.copy()
+    for s in others:
+        acc[:len(s)] ^= s
+    return acc[:width]
 
 
 def pack_block(pcm_i16: np.ndarray, session: int, seq: int, magic: bytes = MAGIC_IN):

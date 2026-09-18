@@ -208,6 +208,7 @@ function setMode(m) {
     $('jitterHint').style.display = '';
     $('underrunRow').style.display = '';
     $('lostRow').hidden = false;
+    $('fecRow').hidden = false;
     $('rttRow').hidden = false;
     $('bufRow').hidden = false;
     // 瀏覽器模式的抖動緩衝以「區塊」為單位（主執行緒抖動大，只能粗調）；
@@ -461,6 +462,9 @@ function poll() {
           // 跟 underruns 一起看才分得出是掉包還是緩衝設太小。
           const srvLost = (s.audio && s.audio.incomplete) || 0;
           $('lost').textContent = `${cs.lost} / ${srvLost}`;
+          // 回程掉包被同位片救回的區塊數。這些本來每一個都是一次緩衝見底的
+          // 斷音，所以這個數字在爬、而 underruns 沒爬，就是 FEC 正在做事。
+          $('fecFixed').textContent = cs.fec ? cs.recovered : '—';
         } catch (_) {}
       }
       $('inLevel').style.width = vuScale(s.in_level) + '%';

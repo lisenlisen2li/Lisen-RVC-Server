@@ -81,6 +81,7 @@ window.I18N = {
     serverBad: '網址格式不正確',
     serverSaved: '已儲存，重新連線中…',
     lost: '遺失區塊',
+    fecFixed: 'FEC 救回',
     err: {
       invalid_token: 'token 不正確',
       already_running: '已在執行中，請先停止',
@@ -170,6 +171,7 @@ window.I18N = {
     serverBad: 'That does not look like a valid address',
     serverSaved: 'Saved, reconnecting ...',
     lost: 'Lost blocks',
+    fecFixed: 'Repaired by FEC',
     err: {
       invalid_token: 'Invalid token',
       already_running: 'Already running — stop it first',
@@ -259,6 +261,7 @@ window.I18N = {
     serverBad: 'アドレスの形式が正しくありません',
     serverSaved: '保存しました。再接続しています…',
     lost: '欠落ブロック',
+    fecFixed: 'FEC で修復',
     err: {
       invalid_token: 'トークンが正しくありません',
       already_running: '既に実行中です。先に停止してください',

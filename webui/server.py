@@ -232,6 +232,8 @@ async def api_start(payload: dict, _=Depends(require_token)):
                     in_dev=dev.get("input"), out_dev=dev.get("output"),
                     udp_host=UDP_HOST, udp_port=UDP_PORT, session=sess,
                     jitter_ms=float(payload.get("jitter_ms", 30.0)),
+                    # 預設關閉：沒帶這個欄位的舊客戶端收不到同位片，行為不變
+                    fec=bool(payload.get("fec", False)),
                 )
             state["mode"] = f"{source}->{sink}"
             state["running"] = True
