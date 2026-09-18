@@ -1,0 +1,42 @@
+RVC Realtime Voice Changer - server
+
+This repository is derived from:
+
+    chaye7417/RVC-MacOS
+    https://github.com/chaye7417/RVC-MacOS
+
+which is itself derived from:
+
+    RVC-Project/Retrieval-based-Voice-Conversion-WebUI
+    https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI
+
+Both are licensed under the GNU Affero General Public License v3.0, and so is
+this repository. See LICENSE for the full text.
+
+The AGPL's network clause (section 13) applies: if you let other people use
+this over a network, you must offer them the source of your version.
+
+Additions in this repository, over and above the upstream projects:
+
+    webui/                  FastAPI server, WebSocket and UDP audio transports,
+                            and a web interface
+    check.sh, bench.py      syntax/consistency checks and a latency benchmark
+    start_*.command         launchers
+
+Fixes applied to the upstream code, with the reasoning recorded in the
+comments at each site:
+
+    gui.py    warmup() before the audio stream starts - lazy initialisation on
+              the CoreAudio realtime thread overflows its ~512KB stack and
+              kills the process with SIGBUS
+    gui.py    clamp to +/-1 before inference - resampler overshoot makes
+              torchfcpe print from inside the realtime callback
+    gui.py    stop_stream() is now unconditional and idempotent, and
+              update_devices() calls it before re-initialising PortAudio -
+              otherwise IOProcs leak and coreaudiod spins forever
+
+Known problem inherited from upstream, NOT fixed here:
+
+    rvc/f0/models.py and rvc/f0/rmvpe.py both build RMVPE as a five-layer
+    placeholder CNN instead of the real U-Net+GRU the checkpoint contains, so
+    the rmvpe pitch estimator always fails to load. Use fcpe.

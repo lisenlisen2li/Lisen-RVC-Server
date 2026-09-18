@@ -76,7 +76,7 @@ import sys
 def check_hf_access():
     try:
         import httpx
-        r = httpx.get('https://huggingface.co', timeout=5)
+        r = httpx.get('https://huggingface.co', timeout=15)
         return r.status_code == 200
     except:
         return False
@@ -84,7 +84,6 @@ def check_hf_access():
 if check_hf_access():
     print('使用 Hugging Face 原站下载...')
 else:
-    os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
     print('检测到国内网络，使用镜像站加速...')
 
 from huggingface_hub import snapshot_download

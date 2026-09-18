@@ -1,0 +1,94 @@
+# RVC 即時變聲器 — nginx 反向代理範例
+#
+# 目的：讓瀏覽器處於安全情境（https），遠端音訊模式才拿得到 navigator.mediaDevices。
+#
+# 用法：
+#   1. 把 server_name 與憑證路徑改成你自己的
+#   2. 放進 nginx 的 sites-enabled / conf.d
+#   3. nginx -t && nginx -s reload
+#   4. 後端以 HTTP 啟動即可（TLS 由 nginx 負責）：
+#
+#      nginx 在別台機器（目前的狀況，用 ./start_webui_behind_proxy.command）：
+#        python -u -m webui.server --host 0.0.0.0 --port 7866 --no-token --trust-lan
+#        後端必須綁 0.0.0.0 才讓另一台的 nginx 連得到。那也代表同網段任何人
+#        都能直接打 7866 繞過 nginx——因為內網本來就不設防，這是可接受的，
+#        用 --trust-lan 明確表態。前提是路由器只把 nginx 的 443 轉出去，
+#        絕對不要把 7866 也轉出去。
+#
+#      nginx 與 Mac 同一台：
+#        python -u -m webui.server --host 127.0.0.1 --port 7866 --no-token
+#        綁 loopback，區網也碰不到後端，唯一入口就是 nginx，不需要 --trust-lan。
+
+# WebSocket 升級所需。這段要放在 http { } 區塊裡，不能放在 server { } 內。
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name rvc.rdxstudios.org;          # ← 改成你的子網域
+
+    ssl_certificate     /etc/nginx/certs/rdxstudios.org/fullchain.pem;   # ← 改成憑證路徑
+    ssl_certificate_key /etc/nginx/certs/rdxstudios.org/privkey.pem;     # ← 改成私鑰路徑
+
+    # 一個音訊區塊是 4800 個 float32 = 19200 bytes，這個上限很寬鬆了
+    client_max_body_size 8m;
+
+    # === 存取控制：內網直接放行，外網才要帳密 ===
+    #
+    # satisfy any 的意思是「IP 白名單通過 or 帳密通過，任一即可」。
+    # 所以內網裝置連進來不會跳帳密視窗，從外網來的則必須輸入。
+    # （若寫成 satisfy all 就變成兩個都要過，內網也會被要求帳密。）
+    satisfy any;
+
+    allow 192.168.50.0/24;   # 內網網段
+    allow 127.0.0.1;
+    # allow 100.64.0.0/10;   # Tailscale。要讓 tailnet 裝置免帳密就取消註解
+    deny  all;
+
+    # 建檔：htpasswd -c /etc/nginx/.htpasswd-rvc <使用者名稱>
+    # 瀏覽器通過驗證後，同源的 WebSocket 握手也會帶上 Authorization 標頭，
+    # 所以音訊連線同樣受保護，不需要額外設定。
+    auth_basic           "RVC";
+    auth_basic_user_file /etc/nginx/.htpasswd-rvc;
+
+    # 注意：allow/deny 比對的是 $remote_addr。如果 nginx 前面還有別的代理
+    # （Cloudflare、另一層 nginx、某些路由器的反向代理），$remote_addr 會是
+    # 那一層的位址而不是真實客戶端，白名單就會全部誤判。那種情況要另外設
+    # real_ip 模組（set_real_ip_from + real_ip_header X-Forwarded-For）。
+
+    location / {
+        proxy_pass http://127.0.0.1:7866;    # ← nginx 在別台就改成 Mac 的區網 IP
+        proxy_http_version 1.1;
+
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        $connection_upgrade;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # === 即時音訊的關鍵設定，不要省略 ===
+        # nginx 預設會把上游回應先緩衝起來再轉發。對一般網頁是好事，對即時音訊
+        # 是災難——它會累積封包再一次送出，直接在你辛苦壓低的延遲上再疊一層，
+        # 而且抖動變大會逼你把播放端的抖動緩衝往上調。
+        proxy_buffering         off;
+        proxy_request_buffering off;
+        tcp_nodelay             on;
+
+        # WebSocket 是長連線，nginx 預設 60 秒沒資料就切斷。
+        # 音訊持續在跑時不會觸發，但暫停不講話時會，所以要調長。
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
+
+# http 一律導向 https。少了這段，用 http 連進來的裝置會因為不是安全情境而
+# 拿不到麥克風，錯誤訊息還不好懂。
+server {
+    listen 80;
+    server_name rvc.rdxstudios.org;          # ← 改成你的子網域
+    return 301 https://$host$request_uri;
+}

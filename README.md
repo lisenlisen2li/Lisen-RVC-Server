@@ -1,166 +1,81 @@
-# RVC 实时变声器 (macOS)
+# RVC 即時變聲器 — 伺服器
 
-一键安装的 macOS 实时变声器，基于 [RVC (Retrieval-based Voice Conversion)](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI)。
+在 Apple Silicon 上跑 RVC 即時變聲，走 MPS。提供網頁介面，以及給原生客戶端用的
+UDP 音訊通道。
 
-## 特性
+客戶端在另一個 repo：**rvc-client**（在你手邊那台裝置收放音，不需要模型或 torch）。
 
-- 实时变声，延迟低
-- 内置 33 个高质量声音模型（女声/男声/卡通/名人）
-- 支持 Apple Silicon (M1/M2/M3/M4) 和 Intel Mac
-- Dock 栏一键启动
-- 中文界面
+## 為什麼有這個專案
 
-## 内置声音模型
+w-okada 的 VCClient 在這台 M4 Pro 上只能用 CPU，延遲約 300ms。這個 fork 能用
+MPS，實測推論快 3.8 倍（MPS 43ms vs CPU 166ms），延遲降到約 150ms。
 
-共 33 个模型，总大小约 6.9 GB。
-
-<details>
-<summary><b>女声（14 个）</b></summary>
-
-| 音色 | 模型 | 索引 | 总大小 |
-|------|------|------|--------|
-| OI | 54.9 MB | 31.9 MB | 86.8 MB |
-| 云儿青春 | 54.9 MB | 438.5 MB | 493.4 MB |
-| 佩佩 | 54.9 MB | 31.9 MB | 86.8 MB |
-| 北极星 | 54.9 MB | 306.3 MB | 361.1 MB |
-| 可可 | 52.6 MB | 189.0 MB | 241.6 MB |
-| 合集 | 52.6 MB | 427.0 MB | 479.7 MB |
-| 婉心 | 54.9 MB | 187.7 MB | 242.5 MB |
-| 学姐 | 52.7 MB | 124.5 MB | 177.2 MB |
-| 小秋少羽 | 54.9 MB | 187.7 MB | 242.6 MB |
-| 石榴 | 52.7 MB | 31.9 MB | 84.6 MB |
-| 苏苏少洛 | 54.9 MB | 69.9 MB | 124.8 MB |
-| 草莓 | 54.9 MB | 124.5 MB | 179.5 MB |
-| 诗韵 | 54.9 MB | 163.4 MB | 218.3 MB |
-| 雅琳御姐 | 54.9 MB | 193.1 MB | 248.0 MB |
-
-</details>
-
-<details>
-<summary><b>男声（13 个）</b></summary>
-
-| 音色 | 模型 | 索引 | 总大小 |
-|------|------|------|--------|
-| 01号 | 52.7 MB | 342.3 MB | 394.9 MB |
-| 02号 | 52.7 MB | 87.3 MB | 139.9 MB |
-| 03号 | 52.7 MB | 33.9 MB | 86.6 MB |
-| 04号 | 52.7 MB | 30.1 MB | 82.8 MB |
-| 06号 | 52.5 MB | 50.0 MB | 102.4 MB |
-| 07号 | 52.6 MB | 547.8 MB | 600.5 MB |
-| 08号 | 52.5 MB | 31.9 MB | 84.3 MB |
-| 09号 | 52.4 MB | 38.6 MB | 91.0 MB |
-| 10号 | 52.7 MB | 458.5 MB | 511.2 MB |
-| 烟嗓 | 52.5 MB | 90.3 MB | 142.7 MB |
-| 男神 | 52.4 MB | 61.0 MB | 113.4 MB |
-| 青年 | 52.4 MB | 31.4 MB | 83.9 MB |
-| 青年瘦弱 | 52.5 MB | 114.3 MB | 166.8 MB |
-
-</details>
-
-<details>
-<summary><b>卡通（2 个）</b></summary>
-
-| 音色 | 模型 | 索引 | 总大小 |
-|------|------|------|--------|
-| 懒羊羊 | 54.9 MB | 130.8 MB | 185.7 MB |
-| 曼波 | 52.7 MB | 134.8 MB | 187.5 MB |
-
-</details>
-
-<details>
-<summary><b>名人（4 个）</b></summary>
-
-| 音色 | 模型 | 索引 | 总大小 |
-|------|------|------|--------|
-| 丁真 | 52.5 MB | 30.1 MB | 82.6 MB |
-| 卢本伟 | 52.7 MB | 36.0 MB | 88.7 MB |
-| 奥巴马 | 54.9 MB | 46.9 MB | 101.8 MB |
-| 特朗普 | 54.9 MB | 527.3 MB | 582.2 MB |
-
-</details>
-
-## 一键安装
-
-### 方法一：让 Claude Code 帮你安装（推荐）
-
-如果你使用 [Claude Code](https://claude.ai/claude-code)，只需把这个仓库链接发给它：
-
-```
-请帮我安装这个 RVC 变声器：https://github.com/chaye7417/RVC-MacOS
-```
-
-Claude Code 会读取 `CLAUDE.md` 文件并自动完成安装。
-
-### 方法二：运行安装脚本
+## 啟動
 
 ```bash
-git clone https://github.com/chaye7417/RVC-MacOS.git
-cd RVC-MacOS
-chmod +x install.sh
-./install.sh
+./start_webui.command              # 綁 0.0.0.0，需要 token
+./start_webui_behind_proxy.command # 前面有會驗證身分的 nginx 時用
+./start_gui.command                # 原本的桌面 GUI（PySimpleGUI）
 ```
 
-安装脚本会自动：
-1. 安装 Python 依赖
-2. 下载声音模型（约 8GB，国内自动使用镜像加速）
-3. 创建 Dock 启动图标
+終端機會印出含 token 的網址。
 
-## 使用方法
+## 音訊路由
 
-### 启动
-- 点击 Dock 栏的「RVC变声器」图标
-- 或运行：`cd ~/Documents/RVC-MacOS && source .venv/bin/activate && python gui.py`
+輸入端與輸出端**各自**可以是伺服器或客戶端，四種組合：
 
-### 音频路由（实现通话变声）
+| 輸入 | 輸出 | 伺服器做的事 |
+|---|---|---|
+| server | server | 單一 duplex 串流。同一時脈、延遲最低（約 150ms） |
+| client | client | UDP 收 → 推論 → UDP 送（約 185ms） |
+| server | client | 本機收音 → 推論 → UDP 送給客戶端 |
+| client | server | UDP 收 → 推論 → 本機播放（例如餵 BlackHole） |
 
-1. 安装 [BlackHole](https://existential.audio/blackhole/)（免费虚拟声卡）
-2. RVC 设置：
-   - 输入设备：你的麦克风
-   - 输出设备：BlackHole 2ch
-3. 微信/QQ 等应用设置麦克风为 BlackHole 2ch
+瀏覽器直連時只有 local / remote 兩種（音訊走 WebSocket，約 370ms）；per-direction
+是原生客戶端才有的。
 
-### 推荐参数
+## 實測數字（M4 Pro、48kHz、block 0.10s）
 
-| 参数 | 推荐值 | 说明 |
-|------|--------|------|
-| 采样长度 | 0.20 ~ 0.26 | 太小会卡顿 |
-| 淡入淡出 | 0.08 ~ 0.10 | |
-| 音高算法 | fcpe | 快速；rmvpe 更稳定 |
+| | 推論中位數 | p95 | 尖峰率 |
+|---|---|---|---|
+| 純引擎，緊密迴圈 | 34.1ms | 35.3ms | 1/150 |
+| 即時速率，**不防降頻** | 62.1ms | 84.0ms | 19/150 |
+| 即時速率，**防降頻** | 33.4ms | 34.5ms | 0/150 |
 
-## 声音模型
+**Apple Silicon 的 GPU 在工作斷斷續續時會降頻**，這是 RTF 規律性衝到 0.9 的
+真正原因——不是瀏覽器、不是 WebSocket、不是網路。介面上的「防止 GPU 降頻」
+會在區塊之間插入少量運算讓時脈維持住。細節見 `webui/engine.py` 的 `GpuWarmer`。
 
-### 内置模型下载
+## 建議參數
 
-安装脚本会自动从 [Hugging Face](https://huggingface.co/chaye741/RVC-Voice-Models) 下载 33 个内置模型（约 6.9 GB）。如果下载失败，可以手动下载：
+| | | |
+|---|---|---|
+| chunkSec | 0.10 | 實測穩定；0.05 餘裕只剩 16%，偏緊 |
+| crossfadeSec | 0.04 | **超過無效**，後端鎖在 `min(crossfade_frame, 4*zc)` |
+| extraFrameSec | 2.5 | 不影響延遲，只影響每塊運算量與連貫度 |
+| 音高演算法 | fcpe | **rmvpe 在這個分支是壞的**，見 NOTICE |
+| RMS Mix | 1.00 | 低於 1 會多兩次 GPU 同步 |
+| 防止 GPU 降頻 | 開 | 代價是持續耗電發熱 |
 
-- **模型地址**：https://huggingface.co/chaye741/RVC-Voice-Models
-- **国内镜像**：https://hf-mirror.com/chaye741/RVC-Voice-Models
+## 音訊裝置的坑
 
-下载后将文件放到对应目录：
-- `.pth` 模型文件 → `assets/weights/`
-- `.index` 索引文件 → `logs/`
+**輸入和輸出要用取樣率相同的裝置。** 不同的話 macOS 會建立聚合裝置，兩個時脈
+漂移會造成規律性卡頓。藍牙輸出常見 44100Hz，配 48000Hz 的麥克風是典型踩雷組合
+（介面偵測到會警告）。
 
-### 添加自定义模型
-
-你可以添加自己训练或从网上下载的 RVC 模型：
-
-1. 将 `.pth` 文件放入 `assets/weights/` 目录
-2. 将 `.index` 文件（如有）放入 `logs/` 目录
-3. 重启 RVC，在界面中即可选择新模型
-
-> 推荐模型下载站：[voice-models.com](https://voice-models.com)、[Hugging Face](https://huggingface.co/models?search=rvc)
-
-## 卸载
+## 開發
 
 ```bash
-./uninstall.sh
+./check.sh     # Python/JS 語法、三語 i18n 鍵、DOM id、UDP 協定兩份定義是否同步
+./bench.py     # 無頭延遲基準測試，不需要音訊裝置
 ```
 
-## 致谢
+**改 UDP 協定時 `webui/udp_audio.py` 和客戶端的 `udp_protocol.py` 兩邊都要改**，
+`check.sh` 會比對。
 
-- [RVC-Project](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI) - 原始 RVC 项目
-- [RVC-WebUI-MacOS](https://github.com/NevilPatel01/RVC-WebUI-MacOS) - macOS 适配版本
+## 授權
 
-## 许可证
+AGPL-3.0。衍生關係與我們改了什麼，見 [NOTICE](NOTICE)。
 
-本项目基于 MIT 许可证开源。声音模型版权归原作者所有，仅供个人学习使用。
+上游的說明文件保留在 [README_MACOS_FORK.md](README_MACOS_FORK.md)（RVC-MacOS 的，
+含 33 個內建音色清單）與 [README_ORIGINAL.md](README_ORIGINAL.md)（RVC 本家的）。

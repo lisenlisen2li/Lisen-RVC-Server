@@ -20,6 +20,7 @@ if sys.platform == "darwin":
 
 now_dir = os.getcwd()
 sys.path.append(now_dir)
+import atexit
 import multiprocessing
 
 flag_vc = False
@@ -169,6 +170,9 @@ if __name__ == "__main__":
             self.input_devices_indices = None
             self.output_devices_indices = None
             self.stream = None
+            # 關視窗會走 stop_stream()，但 Ctrl-C 或被 kill 不會。沒關掉的話
+            # IOProc 會留在 coreaudiod 裡空轉，所以補一道 atexit。
+            atexit.register(self.stop_stream)
             self.update_devices()
             self.launcher()
 
@@ -898,7 +902,45 @@ if __name__ == "__main__":
             self.tg = TorchGate(
                 sr=self.gui_config.samplerate, n_fft=4 * self.zc, prop_decrease=0.9
             ).to(self.config.device)
+            self.warmup()
             self.start_stream()
+
+        def warmup(self):
+            """在主執行緒先跑完整條推論路徑，觸發所有惰性初始化。
+
+            audio_callback 跑在 CoreAudio 的即時執行緒，堆疊只有約 512KB。
+            以下工作首次執行時需要很深的呼叫堆疊，若在該執行緒觸發會堆疊
+            溢位，整個行程以 SIGBUS (Bus error: 10) 閃退：
+
+              1. librosa 的 numba JIT 編譯 (rms_mix_rate < 1 時會用到)
+              2. f0 估計器的惰性載入 (rvc/f0/gen.py 的 `if not hasattr`)
+                 —— fcpe/rmvpe/crepe 都是第一次推論才載入模型
+              3. torch 的 MPS kernel 首次編譯
+
+            在這裡先用假資料跑一次，把上述全部快取在行程內。
+            """
+            dummy = np.random.randn(self.block_frame + 4 * self.zc).astype("float32")
+            librosa.to_mono(dummy[None, :])
+            rms = librosa.feature.rms(
+                y=dummy, frame_length=4 * self.zc, hop_length=self.zc
+            )
+            librosa.amplitude_to_db(rms, ref=1.0)
+
+            warm_wav = torch.zeros_like(self.input_wav_res)
+            warm_wav.normal_(0, 0.05)
+            self.rvc.infer(
+                warm_wav,
+                self.block_frame_16k,
+                self.skip_head,
+                self.return_length,
+                self.gui_config.f0method,
+            )
+            self.resampler(self.input_wav[-self.block_frame - 2 * self.zc :])
+            if self.resampler2 is not None:
+                self.resampler2(torch.zeros(self.block_frame, device=self.config.device))
+            if self.gui_config.I_noise_reduce or self.gui_config.O_noise_reduce:
+                self.tg(self.input_wav.unsqueeze(0), self.input_wav.unsqueeze(0))
+            printt("預熱完成 (numba + %s + MPS)", self.gui_config.f0method)
 
         def start_stream(self):
             global flag_vc
@@ -922,12 +964,22 @@ if __name__ == "__main__":
                 self.stream.start()
 
         def stop_stream(self):
+            """關閉音訊串流。無條件執行且可重複呼叫。
+
+            原本的寫法是 `if flag_vc:` 才關，但 flag_vc 為 False、串流卻還開著
+            正是洩漏發生的狀態（update_devices 就會先把它設 False）。串流沒關乾淨
+            的話，IOProc 會留在 coreaudiod 裡空轉吃 CPU。atexit 也會呼叫這裡，
+            所以必須能安全地重複執行。
+            """
             global flag_vc
-            if flag_vc:
-                flag_vc = False
-                if self.stream is not None:
+            flag_vc = False
+            if self.stream is not None:
+                try:
                     self.stream.abort()
                     self.stream.close()
+                except Exception as e:
+                    printt("stop_stream 失敗（已忽略）: %s", e)
+                finally:
                     self.stream = None
 
         def audio_callback(
@@ -988,6 +1040,10 @@ if __name__ == "__main__":
                         160:
                     ]
                 )
+            # 重採樣濾波器的過衝會讓峰值略微超過 ±1（通常 1~3%）。torchfcpe 的
+            # MelModule 遇到就會 print 警告，而這裡是 CoreAudio 的即時執行緒——
+            # 在回呼裡做 stdout I/O 會阻塞音訊，造成爆音與斷續。先夾住避免觸發。
+            torch.clamp_(self.input_wav_res, -1.0, 1.0)
             # infer
             if self.function == "vc":
                 infer_wav = self.rvc.infer(
@@ -1091,6 +1147,11 @@ if __name__ == "__main__":
         def update_devices(self, hostapi_name=None):
             """获取设备列表"""
             global flag_vc
+            # 只把 flag_vc 設 False 並不會關掉 sd.Stream。若在串流還活著時
+            # _terminate()，已註冊到 CoreAudio 的 IOProc 不會被解除註冊，
+            # coreaudiod 會抱著沒有消費者的裝置持續空轉吃 CPU，而且每重整
+            # 一次就再疊一個。所以這裡要走完整的 stop_stream()。
+            self.stop_stream()
             flag_vc = False
             sd._terminate()
             sd._initialize()

@@ -12,3 +12,18 @@ xcuserdata
 /logs
 
 /assets/weights/*
+certs/
+
+# --- 本專案新增 ---
+# 客戶端有自己的 repo
+/rvc-client/
+*.bak
+*.bak[0-9]
+*.orig
+/tmp_dir
+/upload_dir
+/models_download
+vcclient*.log
+/assets/hubert/
+/assets/rmvpe/
+/configs/inuse/
