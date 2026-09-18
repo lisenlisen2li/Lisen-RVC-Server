@@ -5,6 +5,9 @@ UDP 音訊通道。
 
 客戶端在另一個 repo：**Lisen-RVC-Client**（在你手邊那台裝置收放音，不需要模型或 torch）。
 
+> **接手的人請先看 [HANDOVER.md](HANDOVER.md)** — 完整的工作紀錄、關鍵發現、
+> 踩過的坑，以及唯一還沒修的問題（回程封包遺失）。
+
 ## 為什麼有這個專案
 
 w-okada 的 VCClient 在這台 M4 Pro 上只能用 CPU，延遲約 300ms。這個 fork 能用
