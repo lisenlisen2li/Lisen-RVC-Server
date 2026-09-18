@@ -176,6 +176,7 @@ def api_status(_=Depends(require_token)):
             engine.infer_time_ms / (engine.params.block_time * 1000), 3
         ) if engine.params.block_time else 0.0,
         "audio": router.stats() if state["running"] else None,
+        "timing": engine.timing(),
     }
 
 

@@ -10,6 +10,7 @@
      在回呼裡做 stdout I/O 會造成音訊斷續。
 """
 
+import collections
 import os
 import sys
 import threading
@@ -108,6 +109,9 @@ class VoiceChangerEngine:
         self.block_count = 0
         self.in_level = 0.0    # 輸入音量 RMS，供介面儀表用
         self.out_level = 0.0   # 輸出音量 RMS
+        # 逐塊耗時。只看中位數會漏掉尖峰，而尖峰才是造成斷音的原因，
+        # 所以留一段滑動視窗算百分位數。
+        self._times = collections.deque(maxlen=600)
         self.warmer = GpuWarmer(device)
 
     # ---------- 設定 ----------
@@ -390,8 +394,26 @@ class VoiceChangerEngine:
 
         self.out_level = float(np.sqrt(np.mean(out.astype(np.float64) ** 2)))
         self.infer_time_ms = (time.perf_counter() - t0) * 1000
+        self._times.append(self.infer_time_ms)
         self.block_count += 1
         return out
+
+    def timing(self):
+        """推論耗時的分佈。中位數正常但 p99 很高，就是偶發慢區塊在作怪。"""
+        t = sorted(self._times)
+        if not t:
+            return None
+        pick = lambda q: t[min(len(t) - 1, int(len(t) * q))]
+        budget = self.params.block_time * 1000
+        return {
+            "n": len(t),
+            "p50": round(pick(0.50), 1),
+            "p90": round(pick(0.90), 1),
+            "p99": round(pick(0.99), 1),
+            "max": round(t[-1], 1),
+            "over_70pct": sum(1 for x in t if x > budget * 0.7),
+            "over_90pct": sum(1 for x in t if x > budget * 0.9),
+        }
 
     def stop(self):
         with self._lock:

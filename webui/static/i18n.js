@@ -80,6 +80,7 @@ window.I18N = {
     cancel: '取消',
     serverBad: '網址格式不正確',
     serverSaved: '已儲存，重新連線中…',
+    lost: '遺失區塊',
     err: {
       invalid_token: 'token 不正確',
       already_running: '已在執行中，請先停止',
@@ -168,6 +169,7 @@ window.I18N = {
     cancel: 'Cancel',
     serverBad: 'That does not look like a valid address',
     serverSaved: 'Saved, reconnecting ...',
+    lost: 'Lost blocks',
     err: {
       invalid_token: 'Invalid token',
       already_running: 'Already running — stop it first',
@@ -256,6 +258,7 @@ window.I18N = {
     cancel: 'キャンセル',
     serverBad: 'アドレスの形式が正しくありません',
     serverSaved: '保存しました。再接続しています…',
+    lost: '欠落ブロック',
     err: {
       invalid_token: 'トークンが正しくありません',
       already_running: '既に実行中です。先に停止してください',

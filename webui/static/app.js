@@ -207,6 +207,7 @@ function setMode(m) {
     $('jitterRow').style.display = '';
     $('jitterHint').style.display = '';
     $('underrunRow').style.display = '';
+    $('lostRow').hidden = false;
     $('rttRow').hidden = false;
     $('bufRow').hidden = false;
     // 瀏覽器模式的抖動緩衝以「區塊」為單位（主執行緒抖動大，只能粗調）；
@@ -456,6 +457,10 @@ function poll() {
           $('rtt').textContent = cs.rtt_ms != null ? cs.rtt_ms.toFixed(1) + ' ms' : '—';
           $('buf').textContent = cs.buffer_ms.toFixed(0) + ' ms';
           underrunCount = cs.underruns;
+          // 遺失區塊直接對應「少了 100ms 音訊」，是斷音最常見的成因，
+          // 跟 underruns 一起看才分得出是掉包還是緩衝設太小。
+          const srvLost = (s.audio && s.audio.incomplete) || 0;
+          $('lost').textContent = `${cs.lost} / ${srvLost}`;
         } catch (_) {}
       }
       $('inLevel').style.width = vuScale(s.in_level) + '%';
