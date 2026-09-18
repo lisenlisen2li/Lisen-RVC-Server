@@ -60,6 +60,21 @@ MPS，實測推論快 3.8 倍（MPS 43ms vs CPU 166ms），延遲降到約 150ms
 | RMS Mix | 1.00 | 低於 1 會多兩次 GPU 同步 |
 | 防止 GPU 降頻 | 開 | 代價是持續耗電發熱 |
 
+## 錄製
+
+介面的「錄製」區塊可以把**變聲後的輸出**錄成 WAV 或 MP3（MP3 需要 `ffmpeg`）。
+
+- 檔案寫在**伺服器這台機器**的 `recordings/`，介面上可以下載與刪除。
+- 語音平常完全不落地，**錄製是唯一的例外**，而且只有你主動按下才會開始。
+- 錄音檔**沒有到期自動刪除，會一直留到你自己刪**。它是個人語音資料，
+  `recordings/` 已列入 `.gitignore`。
+- 錄的是套用「輸出音量」之前的訊號，所以事後調喇叭不會改變錄好的檔案。
+
+## 音量
+
+輸入、輸出、監聽三段各自可調，單位 dB，滑到最底是靜音。輸入增益套在變聲**之前**
+（所以輸入儀表顯示的就是模型實際收到的音量），輸出與監聽只影響放出來的聲音。
+
 ## 音訊裝置的坑
 
 **輸入和輸出要用取樣率相同的裝置。** 不同的話 macOS 會建立聚合裝置，兩個時脈
@@ -69,12 +84,17 @@ MPS，實測推論快 3.8 倍（MPS 43ms vs CPU 166ms），延遲降到約 150ms
 ## 開發
 
 ```bash
-./check.sh     # Python/JS 語法、三語 i18n 鍵、DOM id、UDP 協定兩份定義是否同步
-./bench.py     # 無頭延遲基準測試，不需要音訊裝置
+./check.sh           # Python/JS 語法、三語 i18n 鍵、DOM id、兩份重複定義是否同步
+./sync_ui.command    # webui/static/ → rvc-client/static/
+./bench.py           # 無頭延遲基準測試，不需要音訊裝置
 ```
 
-**改 UDP 協定時 `webui/udp_audio.py` 和客戶端的 `udp_protocol.py` 兩邊都要改**，
-`check.sh` 會比對。
+有兩處是刻意重複、必須手動保持同步的，`check.sh` 兩個都會比對：
+
+- **UDP 協定**：`webui/udp_audio.py` 與客戶端的 `udp_protocol.py`。
+- **網頁介面**：`webui/static/` 與 `rvc-client/static/`。客戶端自己服務介面檔，
+  這樣伺服器連不上時畫面還在、位址欄還改得到。改完介面跑 `./sync_ui.command`
+  同步，再到客戶端重跑 `make_app.command`。
 
 ## 授權
 

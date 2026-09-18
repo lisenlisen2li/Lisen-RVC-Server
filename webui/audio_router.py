@@ -216,6 +216,11 @@ class AudioRouter:
         def cb(indata, outdata, frames, t, status):
             mono = librosa.to_mono(indata.T)
             out = self.engine.process(mono)
+            # 輸出音量套在播放這一端，不套在 engine 裡：錄音要的是沒被喇叭
+            # 音量動過的原始轉換結果。
+            g = self.engine.out_gain
+            if g != 1.0:
+                out = np.clip(out * g, -1.0, 1.0)
             outdata[:] = np.repeat(out[:, None], outdata.shape[1], axis=1)
             self.blocks_in += 1
             self.blocks_out += 1
@@ -260,6 +265,11 @@ class AudioRouter:
             data = ring.read(frames)
             if ring.level() == 0:
                 self._playing = False
+            # 套在讀出來之後而不是寫進去之前，調整才會立刻聽得到，
+            # 不必等緩衝區裡舊的音訊先放完。
+            g = self.engine.out_gain
+            if g != 1.0:
+                data = np.clip(data * g, -1.0, 1.0)
             outdata[:] = (data.reshape(-1, 1) if outdata.shape[1] == 1
                           else np.repeat(data[:, None], outdata.shape[1], axis=1))
 

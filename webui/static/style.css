@@ -282,3 +282,41 @@ input[type=range] { accent-color: var(--accent); height: 20px; }
   padding: 8px 10px; font: inherit; font-size: 13px;
 }
 .srvbar .card-body { padding: 14px 16px; }
+
+/* ---------- 套用（改了要重新開始的設定才出現） ---------- */
+.bigbtn.apply { border-color: var(--warn); color: var(--warn); }
+#applyHint { color: var(--warn); }
+
+/* ---------- 音量 ---------- */
+/* dB 值比其他數字長（"-12.5 dB"、"靜音"），欄位要寬一點才不會換行 */
+#gainInOut, #gainOutOut, #gainMonOut { flex-basis: 66px; }
+
+/* ---------- 錄製 ---------- */
+.bigbtn.rec .ico circle { fill: currentColor; stroke: none; }
+.bigbtn.rec.on { border-color: var(--bad); color: var(--bad); }
+/* 錄製中讓按鈕輕輕呼吸，餘光就看得出還在錄 */
+.bigbtn.rec.on .ico { animation: recpulse 1.6s ease-in-out infinite; }
+@keyframes recpulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) {
+  .bigbtn.rec.on .ico { animation: none; }
+}
+
+#recCard .ctl { flex-wrap: wrap; }
+#recCard #recFormat { flex: 0 0 96px; }
+#recCard .val { flex: 0 0 auto; min-width: 52px; }
+
+.reclist { list-style: none; margin: 14px 0 0; padding: 0; }
+.reclist li {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 11px; border: 1px solid var(--line); border-radius: 6px;
+  margin-bottom: 7px; font-size: 12.5px;
+}
+.reclist li:last-child { margin-bottom: 0; }
+.reclist li.on { border-color: var(--bad); }
+.reclist li.on .sz { color: var(--bad); }
+.reclist .nm { flex: 1 1 200px; min-width: 0; font-variant-numeric: tabular-nums;
+               overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reclist .sz { flex: 0 0 auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.reclist .empty { justify-content: center; color: var(--muted); border-style: dashed; }
+.reclist a.icobtn { text-decoration: none; }
+.reclist button.del:hover { border-color: var(--bad); color: var(--bad); }

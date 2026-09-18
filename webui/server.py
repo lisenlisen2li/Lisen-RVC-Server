@@ -8,7 +8,10 @@
 存取控制：伺服器綁定 0.0.0.0 時，同網段任何人都連得到，因此一律要求 token。
 token 於啟動時產生並印在終端機，不寫入磁碟。
 
-音訊不落地：語音只存在於記憶體，不寫檔、不寫入日誌。
+音訊不落地：語音只存在於記憶體，不寫檔、不寫入日誌。**唯一的例外是錄製**——
+使用者在介面上明確按下錄製，轉換後的輸出才會寫進 ROOT/recordings/，並且留在
+磁碟上直到使用者自己刪除。介面提供列表、下載與刪除，隱私權政策那一節也有
+對應的說明；改動錄製行為時三個地方要一起改，別讓說明變成謊話。
 """
 
 import argparse
@@ -63,6 +66,7 @@ from fastapi.staticfiles import StaticFiles
 
 from webui.engine import VoiceChangerEngine, Params, spawn_worker
 from webui.audio_router import AudioRouter
+from webui.recorder import Recorder
 
 STATIC = Path(__file__).resolve().parent / "static"
 TOKEN = os.environ.get("RVC_TOKEN") or secrets.token_urlsafe(12)
@@ -74,6 +78,8 @@ TOKEN_REQUIRED = True
 app = FastAPI(title="RVC Realtime Voice Changer")
 engine = VoiceChangerEngine(device="mps")
 router = AudioRouter(engine)
+recorder = Recorder(ROOT)
+engine.recorder = recorder
 
 # 由 main() 設定，供 /api/start 開 UDP 通道時使用
 UDP_HOST = "0.0.0.0"
@@ -177,7 +183,61 @@ def api_status(_=Depends(require_token)):
         ) if engine.params.block_time else 0.0,
         "audio": router.stats() if state["running"] else None,
         "timing": engine.timing(),
+        "recording": recorder.status(),
     }
+
+
+# ---------- 錄製 ----------
+#
+# 這是整個服務唯一會把語音寫上磁碟的地方，所以每個端點都要求 token，檔名一律
+# 由伺服器產生、比對白名單樣式（見 recorder.NAME_RE），使用者傳來的字串永遠
+# 不直接拼進路徑。刪除端點是刻意提供的：個資法第八條要求當事人查得到、也刪
+# 得掉自己的資料，介面上必須真的有那顆按鈕。
+
+@app.post("/api/record/start")
+def api_record_start(payload: dict, _=Depends(require_token)):
+    if not state["running"]:
+        raise HTTPException(400, "not_running")
+    try:
+        return recorder.start(engine.params.samplerate,
+                              payload.get("format", "wav"))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"{type(e).__name__}: {e}")
+
+
+@app.post("/api/record/stop")
+def api_record_stop(_=Depends(require_token)):
+    r = recorder.stop()
+    if r is None:
+        raise HTTPException(400, "not_recording")
+    return r
+
+
+@app.get("/api/recordings")
+def api_recordings(_=Depends(require_token)):
+    return {"recordings": recorder.list()}
+
+
+@app.post("/api/recordings/delete")
+def api_recording_delete(payload: dict, _=Depends(require_token)):
+    """用 POST 而不是 DELETE：客戶端的內嵌介面是 stdlib 的 http.server，
+    只分派 do_GET / do_POST，多一個方法就要多一段轉發程式碼。"""
+    if not recorder.delete(payload.get("name", "")):
+        raise HTTPException(400, "delete_failed")
+    return {"ok": True}
+
+
+@app.get("/api/recordings/file")
+def api_recording_file(name: str = Query(default=""), _=Depends(require_token)):
+    p = recorder.resolve(name)
+    if p is None:
+        raise HTTPException(404, "not_found")
+    return FileResponse(str(p), filename=p.name,
+                        media_type="audio/mpeg" if p.suffix == ".mp3" else "audio/wav")
 
 
 @app.post("/api/live")
@@ -257,10 +317,13 @@ async def api_start(payload: dict, _=Depends(require_token)):
 
 @app.post("/api/stop")
 def api_stop(_=Depends(require_token)):
+    # 先收錄音。停掉轉換之後就不會再有區塊進來，開著的檔案只會一直空等，
+    # 而使用者按下「停止」時心裡想的就是「這一段結束了」。
+    rec = recorder.stop()
     router.stop()
     engine.stop()
     state.update(running=False, mode=None)
-    return {"ok": True}
+    return {"ok": True, "recording": rec}
 
 
 # ---------- 遠端模式：WebSocket 音訊 ----------
@@ -354,6 +417,12 @@ def _cleanup():
     """
     try:
         router.stop()
+    except Exception:
+        pass
+    # 行程要結束了，把錄到一半的檔案收乾淨（wav 標頭要補、mp3 要轉檔），
+    # 否則留下的是一個長度欄位不對的半成品。
+    try:
+        recorder.stop()
     except Exception:
         pass
 

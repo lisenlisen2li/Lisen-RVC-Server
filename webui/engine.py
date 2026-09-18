@@ -78,9 +78,21 @@ class Params:
     samplerate: int = 48000
     n_cpu: int = 4
     keep_warm: bool = True
+    # 音量以 dB 表示，0 = 原樣。MUTE_DB 當作「靜音」的哨兵值，滑桿滑到底就是它。
+    in_gain_db: float = 0.0
+    out_gain_db: float = 0.0
 
     def to_dict(self):
         return asdict(self)
+
+
+# 滑桿的最低刻度。到了這一格就是全靜音，不是 -40dB 的微弱聲音。
+MUTE_DB = -40.0
+
+
+def db_to_linear(db: float) -> float:
+    """dB 轉線性倍率。滑到最底視為靜音。"""
+    return 0.0 if db <= MUTE_DB else float(10.0 ** (db / 20.0))
 
 
 class VoiceChangerEngine:
@@ -113,6 +125,12 @@ class VoiceChangerEngine:
         # 所以留一段滑動視窗算百分位數。
         self._times = collections.deque(maxlen=600)
         self.warmer = GpuWarmer(device)
+        # 線性倍率，跟 params 裡的 dB 同步。每塊都算一次 10**(db/20) 沒必要，
+        # 而且這兩個值會被即時回呼讀走，先算好只剩一次浮點讀取。
+        self.in_gain = 1.0
+        self.out_gain = 1.0
+        # 由 server.py 注入。None 就完全不錄——process() 只多一次 is-None 判斷。
+        self.recorder = None
 
     # ---------- 設定 ----------
 
@@ -203,6 +221,9 @@ class VoiceChangerEngine:
 
             self.tg = TorchGate(sr=sr, n_fft=4 * self.zc, prop_decrease=0.9).to(dev)
 
+            self.in_gain = db_to_linear(p.in_gain_db)
+            self.out_gain = db_to_linear(p.out_gain_db)
+
             self._warmup()
             self.warmer.enable(p.keep_warm)
             self.ready = True
@@ -252,6 +273,13 @@ class VoiceChangerEngine:
                       "I_noise_reduce", "O_noise_reduce"):
                 if k in kw:
                     setattr(self.params, k, kw[k])
+            # 音量可以隨時調，不需要重建緩衝區
+            if "in_gain_db" in kw:
+                self.params.in_gain_db = float(kw["in_gain_db"])
+                self.in_gain = db_to_linear(self.params.in_gain_db)
+            if "out_gain_db" in kw:
+                self.params.out_gain_db = float(kw["out_gain_db"])
+                self.out_gain = db_to_linear(self.params.out_gain_db)
 
     # ---------- 處理 ----------
 
@@ -267,6 +295,15 @@ class VoiceChangerEngine:
         t0 = time.perf_counter()
         p = self.params
         dev = self.device
+
+        if self.in_gain != 1.0:
+            # 不可就地乘。duplex 路徑傳進來的很可能就是 CoreAudio 的輸入緩衝區
+            # 本身——單聲道時 librosa.to_mono 是直接把同一塊記憶體回傳的——
+            # 就地改會污染驅動層下一次回呼看到的資料。
+            indata = np.clip(indata * self.in_gain, -1.0, 1.0).astype("float32")
+
+        # 量測放在增益之後：儀表要顯示模型實際收到的音量，使用者才知道該
+        # 把輸入增益調到哪裡。
         self.in_level = float(np.sqrt(np.mean(indata.astype(np.float64) ** 2)))
 
         if p.threhold > -60:
@@ -393,6 +430,14 @@ class VoiceChangerEngine:
         out = infer_wav[: self.block_frame].cpu().numpy()
 
         self.out_level = float(np.sqrt(np.mean(out.astype(np.float64) ** 2)))
+
+        # 錄的是「變聲後、套用輸出音量之前」的訊號：輸出音量是監聽用的，
+        # 事後調喇叭不該改變已經錄下來的內容。feed() 內部只做一次 put_nowait，
+        # 真正寫檔在另一條執行緒——這裡可能是 CoreAudio 的回呼，碰不得磁碟。
+        rec = self.recorder
+        if rec is not None and rec.active:
+            rec.feed(out)
+
         self.infer_time_ms = (time.perf_counter() - t0) * 1000
         self._times.append(self.infer_time_ms)
         self.block_count += 1

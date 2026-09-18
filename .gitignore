@@ -27,3 +27,6 @@ vcclient*.log
 /assets/hubert/
 /assets/rmvpe/
 /configs/inuse/
+
+# 錄音檔是使用者的個人語音資料，絕不進版控
+/recordings/

@@ -40,8 +40,10 @@
       <div class="ctl">
         <input type="text" id="serverInput" placeholder="http://192.168.50.173:7866">
         <button id="serverSave" class="icobtn wide" data-i18n="save">Save</button>
+        <button id="serverRetry" class="icobtn wide" data-i18n="retry">Retry</button>
         <button id="serverCancel" class="icobtn wide" data-i18n="cancel">Cancel</button>
       </div>
+      <p class="tiny warn" id="serverErr" hidden></p>
       <p class="tiny" data-i18n="serverHint">Point this straight at the machine running the model. A reverse proxy will not forward the audio.</p>
     </div>
   </section>
@@ -123,7 +125,14 @@
             <svg viewBox="0 0 24 24" class="ico"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
             <span data-i18n="stop">Stop</span>
           </button>
+          <!-- 只有「轉換中」且動過需要重建緩衝區的設定時才出現。
+               按下去 = 停止 + 重新開始，參數帶著新的值。 -->
+          <button class="bigbtn apply" id="applyBtn" hidden>
+            <svg viewBox="0 0 24 24" class="ico"><path d="M20 11.5A8 8 0 006 6M4 4v4h4M4 12.5a8 8 0 0014 5M20 20v-4h-4"/></svg>
+            <span data-i18n="apply">Apply</span>
+          </button>
         </div>
+        <p class="tiny" id="applyHint" hidden></p>
 
         <h3 class="sub" id="modeHead" data-i18n="audioMode">Audio Mode</h3>
         <div class="btnrow" id="modeRow">
@@ -200,6 +209,29 @@
           </div>
         </section>
 
+        <!-- Volumes：三段增益都是即時生效，不需要重新開始 -->
+        <section class="fold">
+          <button class="fold-head"><span data-i18n="volumes">Volumes</span><i class="chev"></i></button>
+          <div class="fold-body">
+            <div class="ctl">
+              <span class="ctl-label" data-i18n="gainIn">Input</span>
+              <input type="range" id="gainIn" min="-40" max="12" step="0.5" value="0">
+              <b class="val" id="gainInOut">0.0 dB</b>
+            </div>
+            <div class="ctl">
+              <span class="ctl-label" data-i18n="gainOut">Output</span>
+              <input type="range" id="gainOut" min="-40" max="12" step="0.5" value="0">
+              <b class="val" id="gainOutOut">0.0 dB</b>
+            </div>
+            <div class="ctl" id="gainMonRow" hidden>
+              <span class="ctl-label" data-i18n="gainMon">Monitor</span>
+              <input type="range" id="gainMon" min="-40" max="12" step="0.5" value="0">
+              <b class="val" id="gainMonOut">0.0 dB</b>
+            </div>
+            <p class="tiny" data-i18n="gainHint">Input gain is applied before conversion, so the input meter shows what the model actually receives. Output and monitor only affect playback.</p>
+          </div>
+        </section>
+
         <!-- Latency -->
         <section class="fold">
           <button class="fold-head"><span data-i18n="latency">Latency</span><i class="chev"></i></button>
@@ -238,6 +270,32 @@
 
         <p class="notice" id="notice"></p>
       </div>
+    </div>
+  </section>
+
+  <!-- ===== Recording =====
+       整個服務唯一會把語音寫上磁碟的地方，所以刪除鍵是必要的，不是附加功能。
+       檔案寫在伺服器那台機器上，這裡的下載是透過介面轉發拿回本機。 -->
+  <section class="card" id="recCard">
+    <div class="card-head">
+      <h2 data-i18n="recording">Recording</h2>
+      <span class="muted" id="recCount"></span>
+    </div>
+    <div class="card-body">
+      <div class="ctl">
+        <button class="bigbtn rec" id="recBtn" disabled>
+          <svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="6"/></svg>
+          <span id="recBtnLabel" data-i18n="recStart">Record</span>
+        </button>
+        <span class="ctl-label" data-i18n="recFormat">Format</span>
+        <select id="recFormat">
+          <option value="wav">WAV</option>
+          <option value="mp3">MP3</option>
+        </select>
+        <b class="val" id="recElapsed">—</b>
+      </div>
+      <p class="tiny" id="recHint" data-i18n="recHint">Records the converted output. Files stay on the server until you delete them.</p>
+      <ul class="reclist" id="recList"></ul>
     </div>
   </section>
 

@@ -31,6 +31,19 @@ for k in keys:
 print("  ✓ 一致" if not bad else "  ✗ 不一致\n    "+"\n    ".join(bad))
 PY
 
+echo "=== 介面檔兩份是否同步 ==="
+# 客戶端自己服務介面檔（伺服器連不上時才畫得出頁面），所以同一份介面存在
+# 兩個地方。伺服器這份是真相來源。
+if [ ! -d rvc-client/static ]; then
+  echo "  – rvc-client/static 不存在，跳過（客戶端會自動退回向伺服器要介面）"
+elif diff -rq webui/static rvc-client/static >/dev/null 2>&1; then
+  echo "  ✓ 同步"
+else
+  echo "  ✗ 不同步：$(diff -rq webui/static rvc-client/static 2>&1 | head -5)"
+  echo "    跑 ./sync_ui.command 同步"
+  ok=1
+fi
+
 echo "=== i18n 鍵與 DOM id ==="
 .venv/bin/python - <<'PY'
 import re
